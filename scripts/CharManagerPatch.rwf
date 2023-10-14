@@ -1,0 +1,84 @@
+<DocumentElement xmlns="http://tempuri.org/Ruleset.xsd">
+  <Scripts>
+    <ScriptName>CharManagerPatch</ScriptName>
+    <FolderID>0</FolderID>
+    <Script>function performSelection(nodeChar, aWords, aIncreaseChoice, suffix)
+	if suffix == "1" then 
+		suffix = ""
+	end
+	
+	GlobalDebug.consoleObjects("applyClassStats - aWords, aIncreaseChoice =", aWords, aIncreaseChoice);
+
+	-- Launch the ability selection window if there is more than one ability to choose from.
+	if #aIncreaseChoice == 1 then		
+		CharManager.updateChargenTrackerAbilityField(nodeChar, "..choices.class_keyability_choices" .. suffix, aIncreaseChoice[1]:lower());
+		CharManager.updateChargenTrackerAbilityField(nodeChar, "class_keyability" ..suffix, aIncreaseChoice[1]:lower());
+		
+		DB.setValue(nodeChar, "keyability" .. suffix, "string", aIncreaseChoice[1]:lower());
+		
+		sFormat = Interface.getString("char_message_addclasskeyability");
+		sMsg = string.format(sFormat, aIncreaseChoice[1], DB.getValue(nodeChar, "name", ""));
+		
+	elseif #aIncreaseChoice &gt; 1 then
+		local wSelect = Interface.openWindow("select_dialog", "");
+		local sTitle = Interface.getString("char_title_selectabilityincrease");
+		local sMessage = Interface.getString("char_title_selectkeyclassability");
+		
+		local sAbilityChoice = table.concat(aIncreaseChoice, "|"):lower();
+		CharManager.updateChargenTrackerAbilityField(nodeChar, "..choices.class_keyability_choices", sAbilityChoice);
+		
+		wSelect.requestSelection(sTitle, sMessage, aIncreaseChoice, onClassKeyAbilitySelect, nodeChar, 1);
+		
+		sFormat = Interface.getString("char_message_selectclasskeyability");
+		sMsg = string.format(sFormat, DB.getValue(nodeChar, "name", ""));				
+	else
+		sFormat = Interface.getString("char_error_addclasskeyabilityfailed");
+		sMsg = string.format(sFormat, sKeyability, DB.getValue(nodeChar, "name", ""));
+	end		
+	--ChatManager.SystemMessage(sMsg);
+	ChargenTracker.addTextToLog(nodeChar, sMsg);	
+end
+
+function patch(nodeChar, nodeClass, nodeSource, nLevel, nTotalLevel, sKeyability)
+	local aWords = StringManager.parseWords(sKeyability:lower());
+	
+	local totalWords = #aWords
+	
+	local aIncreaseChoice = { {} };
+	local i = 1;
+	local numSelections = 0
+	-- Add the list of possible first choice ability boosts to aIncreaseChoice
+	--Debug.chat(aWords)
+	
+	for _, word in ipairs(aWords) do 
+		if StringManager.contains(DataCommon.abilities, word) then
+			table.insert(aIncreaseChoice[#aIncreaseChoice], StringManager.capitalize(word))
+		elseif StringManager.isWord(word, "and") then 
+			table.insert(aIncreaseChoice, {})
+		elseif StringManager.isWord(word, "or") then 
+			-- do nothing
+		end
+	end
+		
+	
+	for i, choices in ipairs(aIncreaseChoice) do 
+		performSelection(nodeChar, aWords, choices, tostring(i))
+	end	
+end
+
+function onInit()
+	local _applyClassStats = CharManager.applyClassStats
+
+	CharManager.applyClassStats = function(nodeChar, nodeClass, nodeSource, nLevel, nTotalLevel)
+		local sKeyability = DB.getValue(nodeSource, "keyability");
+		if nTotalLevel == 1 and sKeyability then 
+			patch(nodeChar, nodeClass, nodeSource, nLevel, nTotalLevel, sKeyability)
+		else
+			_applyClassStats(nodeChar, nodeClass, nodeSource, nLevel, nTotalLevel)
+		end
+	end 
+end</Script>
+    <RegisterScript>true</RegisterScript>
+    <Encoding />
+  </Scripts>
+</DocumentElement>

@@ -1,0 +1,100 @@
+<DocumentElement xmlns="http://tempuri.org/Ruleset.xsd">
+  <Scripts>
+    <ScriptName>ClassCombiner</ScriptName>
+    <FolderID>0</FolderID>
+    <Script>-- Key ability uses:
+-- char_actions_details, char_actions_details2 :: addPowerClass
+-- char :: recalcAbilities (only beginner box?)
+-- chargen_tracker_main_pc :: setCyclerControls -- these just seem to check if the keyability exists at all
+-- manager_char :: applyClassStats -- seems to just be for selecting during chargen
+-- manager_char :: onClassAbilitySelect -- same as above??
+-- manager_char :: handleClassFeatureFocusSpellClass -- sets the spell class ability to the selected key ability (unless you're a champion, then it's just charisma)
+-- npc_spells :: addPowerClass -- same as char_actions_details 
+
+--- Can probably ignore these ones
+-- data_library -- I think this is just metadata
+-- manager_version2 :: migrateChar12 -- looks like a migration
+
+
+function combine(a, b) 
+	a = DB.findNode(a)
+	b = DB.findNode(b)
+	--Debug.chat(a)
+	--Debug.chat(b)
+	
+	local classNode = DB.createChild("class")
+	
+	combineNodes(classNode, a, b, "classarmor")
+	combineNodes(classNode, a, b, "classweapons")
+	
+	DB.setValue(classNode, "name", "string", DB.getValue(a, "name") .. "/" .. DB.getValue(b, "name"))
+	
+	combineNodes(classNode, a, b, "skills")
+	combineNodes(classNode, a, b, "classspells")
+	combineNodes(classNode, a, b, "keyability", " and ")
+	local featuresNode = DB.createChild(classNode, "classfeatures")	
+	
+	copyFeatures(featuresNode, a)
+	copyFeatures(featuresNode, b)
+	
+	copyProf(classNode, "will", a, b)
+	copyProf(classNode, "fortitude", a, b)
+	copyProf(classNode, "reflex", a, b)
+	copyProf(classNode, "perception", a, b)
+	copyProf(classNode, "classdc", a, b)
+	
+	copyNumber(classNode, "hitpoints", a, b)
+	copyNumber(classNode, "skillstrained", a, b)
+end
+
+function copyNumber(classNode, name, a, b)
+	local aValue = DB.getValue(a, name, 0)
+	local bValue = DB.getValue(b, name, 0)
+	
+	DB.setValue(classNode, name, "number", math.max(aValue, bValue))
+end
+
+function copyProf(classNode, name, a, b)
+	local aValue = DB.getValue(a, name, "")
+	local bValue = DB.getValue(b, name, "")
+	
+	local aNum = GameSystem.profLevelBonus[aValue:lower()] or 0  -- lower because classdc is Trained instead of trained
+	local bNum = GameSystem.profLevelBonus[bValue:lower()] or 0
+	
+	if aNum &gt; bNum then
+		DB.setValue(classNode, name, "string", aValue)
+	else
+		DB.setValue(classNode, name, "string", bValue)
+	end
+end
+
+function copyFeatures(featureNode, a)
+	local features = DB.getChildren(a, "classfeatures")
+	
+	for _, feature in pairs(features) do 
+		local dest = DB.createChild(featureNode)
+		DB.copyNode(feature, dest)
+	end
+end
+
+function combineNodes(classNode, a, b, name, delimiter)
+	delimiter = delimiter or " "
+	local aValue = DB.getValue(a, name, "")
+	local bValue = DB.getValue(b, name, "")
+	
+	DB.setValue(classNode, name, "string", aValue .. delimiter .. bValue)
+end
+
+function onInit()
+	Comm.registerSlashHandler("makeDualClass", function()
+		 Interface.openWindow("ClassCombiner", "")
+	end)
+	
+	--Interface.openWindow("ClassCombiner", "")
+	--Interface.openWindow("masterindex", "class")
+end
+</Script>
+    <RegisterScript>true</RegisterScript>
+    <Encoding />
+  </Scripts>
+</DocumentElement>
